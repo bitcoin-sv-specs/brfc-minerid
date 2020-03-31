@@ -1,3 +1,9 @@
+## RFC Notice
+
+This draft spec is released as an RFC (request for comment) as part of the public review process. Any comments, criticisms or suggestions should be directed toward the [issues page](https://github.com/bitcoin-sv-specs/brfc-minerid/issues) on this github repository.
+
+A beta reference implementation of the Miner ID document server is available at https://github.com/bitcoin-sv/minerid-reference
+
 # MinerId Spec
 
 |     BRFC     |  title  | authors | version |
