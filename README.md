@@ -4,7 +4,7 @@ This draft spec is released as an RFC (request for comment) as part of the publi
 
 A beta reference implementation of the Miner ID document server is available at https://github.com/bitcoin-sv/minerid-reference
 
-# MinerId Spec
+# MinerId Specification
 
 |     BRFC     |  title  | authors | version |
 | :----------: | :-----: | :-----: | :-----: |
