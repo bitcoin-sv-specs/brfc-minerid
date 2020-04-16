@@ -43,7 +43,7 @@ The blockBind object should be located under the `extensions` field of the `dyna
 |     field     	|  function  	|
 |------------	|-------	|
 | `prevBlockHash` 	| hash of the previous block, should match the same field in the block header 	|
-| `modifiedMerkleRoot` 	| size of current block (in `bytes`) 	|
+| `modifiedMerkleRoot` 	| modified merkle root as described above 	|
 
 
 ## Example 
