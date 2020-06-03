@@ -8,6 +8,8 @@
 
 This extension enables the miner to publish default fee rates.  This is informational only as the Merchant API is the mechanism for real-time querying of miners for current fee rates.
 
+>**Note**: this fee refers to the miner's default, publicly available fee rates (i.e. calling [MAPI](https://github.com/bitcoin-sv-specs/brfc-merchantapi) *without* a token or user authentication).
+
 ## Location
 
 The blockInfo object should be located under the `extensions` field of the `dynamic-CD`
@@ -38,7 +40,7 @@ The blockInfo object should be located under the `extensions` field of the `dyna
 
   "extensions": {
     "feeSpec": {
-        "defaultFee": [
+        "fees": [
             {
                 "feeType": "standard",
                     "miningFee": {

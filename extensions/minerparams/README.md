@@ -19,14 +19,14 @@ The minerParams object should be located under the `extensions` field of the `st
 
   "extensions": {
     "minerParams": {
-	  "policy": {
-	    "blockmaxsize": number,
-		"maxstackmemoryusagepolicy": number,
-	  },
-	  "consensus": {
-	    "excessiveblocksize": number,
-		"maxstackmemoryusageconsensus": number
-	  }
+			"policy": {
+				"blockmaxsize": number,
+				"maxstackmemoryusagepolicy": number,
+			},
+			"consensus": {
+				"excessiveblocksize": number,
+				"maxstackmemoryusageconsensus": number
+			}
     }
   }
 }
@@ -48,14 +48,14 @@ The minerParams object should be located under the `extensions` field of the `st
 
   "extensions": {
     "minerParams": {
-	  "policy": {
-	    "blockmaxsize": 512000000,
-		"maxstackmemoryusagepolicy": 10000000,
-	  },
-	  "consensus": {
-	    "excessiveblocksize": 1000000000,
-		"maxstackmemoryusageconsensus": 100000000
-	  }
+			"policy": {
+				"blockmaxsize": 512000000,
+				"maxstackmemoryusagepolicy": 10000000,
+			},
+			"consensus": {
+				"excessiveblocksize": 1000000000,
+				"maxstackmemoryusageconsensus": 100000000
+			}
     }
   }
 }
