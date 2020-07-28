@@ -232,9 +232,18 @@ The base MinerId protocol is intended to be extended with additional information
 ## 4.1 Sample MinerId generator
 
 | [JavaScript](minerId-generator.js) |
+
+```console
+$ npm install
+$ npm start
+```
   
 | [Golang](minerId-generator.go) |
 
+```console
+$ go run minerId-generator.go
+```
+  
 ## 4.2 Security hardening (optional)
 
 ### Design discussion notes
