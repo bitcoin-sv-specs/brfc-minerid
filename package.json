@@ -1,0 +1,23 @@
+{
+  "name": "brfc-minerid",
+  "version": "1.0.0",
+  "description": "This draft spec is released as an RFC (request for comment) as part of the public review process. Any comments, criticisms or suggestions should be directed toward the [issues page](https://github.com/bitcoin-sv-specs/brfc-minerid/issues) on this github repository.",
+  "main": "minerId-generator.js",
+  "scripts": {
+    "start": "node minerId-generator.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitcoin-sv-specs/brfc-minerid.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bitcoin-sv-specs/brfc-minerid/issues"
+  },
+  "homepage": "https://github.com/bitcoin-sv-specs/brfc-minerid#readme",
+  "dependencies": {
+    "bsv": "^1.5.3"
+  }
+}
