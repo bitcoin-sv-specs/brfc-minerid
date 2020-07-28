@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"bitbucket.org/simon_ordish/cryptolib/transaction"
-	"github.com/btcsuite/btcd/btcec"
+	"github.com/bitcoinsv/bsvd/bsvec"
+	"github.com/libsv/libsv/transaction/output"
 )
 
 const protocolName = "ac1eed88"
@@ -34,7 +34,7 @@ type minerContact struct {
 	MerchantAPIEndPoint string `json:"merchantAPIEndPoint"`
 }
 
-func createCoinbaseDocument(height uint64, minerID string, prevMinerIDPrivKey *btcec.PrivateKey, vcTx string, mc minerContact) (coinbaseDoc, error) {
+func createCoinbaseDocument(height uint64, minerID string, prevMinerIDPrivKey *bsvec.PrivateKey, vcTx string, mc minerContact) (coinbaseDoc, error) {
 	prevMinerID := prevMinerIDPrivKey.PubKey().SerializeCompressed()
 
 	p1 := prevMinerID
@@ -74,7 +74,7 @@ func createCoinbaseDocument(height uint64, minerID string, prevMinerIDPrivKey *b
 	return doc, nil
 }
 
-func createMinerIDOpReturn(height uint64, prevMinerIDPrivKey *btcec.PrivateKey, minerIDPrivKey *btcec.PrivateKey, vcTx string, mc minerContact) (string, error) {
+func createMinerIDOpReturn(height uint64, prevMinerIDPrivKey *bsvec.PrivateKey, minerIDPrivKey *bsvec.PrivateKey, vcTx string, mc minerContact) (string, error) {
 	minerID := hex.EncodeToString(minerIDPrivKey.PubKey().SerializeCompressed())
 
 	doc, err := createCoinbaseDocument(height, minerID, prevMinerIDPrivKey, vcTx, mc)
@@ -99,24 +99,25 @@ func createMinerIDOpReturn(height uint64, prevMinerIDPrivKey *btcec.PrivateKey, 
 	parts = append(parts, []byte(hex.EncodeToString(signature.Serialize())))
 
 	// If we have some data, make another output with an OP_RETURN for it.
-	output, err := transaction.NewOutputOpReturnPush(parts)
+	output, err := output.NewOpReturnParts(parts)
+	// output, err := transaction.NewOutputOpReturnPush(parts)
 	if err != nil {
 		return "", err
 	}
 
-	return hex.EncodeToString(output.GetOutputScript()), nil
+	return output.GetLockingScriptHexString(), nil
 }
 
 func main() {
 	var h uint64 = 123
 	// mid := "03f9d057f6ff6606f615302812db37f6eccdd531cdd2c321673af187cf7dbbb9ae"
 	v := "11c9f0be55da88192f1b6538468975bcfc1635c48f1ce9eeae12cdaefc5a4c99"
-	privKey, err := btcec.NewPrivateKey(btcec.S256())
+	privKey, err := bsvec.NewPrivateKey(bsvec.S256())
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	prevPrivKey, err := btcec.NewPrivateKey(btcec.S256())
+	prevPrivKey, err := bsvec.NewPrivateKey(bsvec.S256())
 	if err != nil {
 		fmt.Println(err)
 		return
