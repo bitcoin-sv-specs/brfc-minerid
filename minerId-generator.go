@@ -11,7 +11,7 @@ import (
 )
 
 const protocolName = "ac1eed88"
-const cbdVersion = "0.1"
+const cbdVersion = "0.2"
 
 type coinbaseDoc struct {
 	Version        string       `json:"version"`

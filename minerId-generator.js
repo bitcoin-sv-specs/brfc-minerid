@@ -1,7 +1,7 @@
 const bsv = require('bsv')
 
 const protocolName = 'ac1eed88'
-const cbdVersion = '0.1'
+const cbdVersion = '0.2'
 
 function createCoinbaseDocument (height, minerId, prevMinerIdPrivKey, vcTx, optionalData) {
   let prevMinerId = prevMinerIdPrivKey.toPublicKey().toString()

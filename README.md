@@ -8,7 +8,7 @@ A beta reference implementation of the Miner ID document server is available at 
 
 |     BRFC     |  title  | authors | version |
 | :----------: | :-----: | :-----: | :-----: |
-| 07f0786cdab6 | minerId | nChain  |   0.1   |
+| f44dbb52b4b2 | minerId | nChain  |   0.2   |
 
 ## 1. Introduction
 
@@ -199,18 +199,18 @@ The `CD` and `sig(CD)` in proper JSON fromat decoded from the transaction (as sh
 ```json
 {
   "document": {
-    "version": "0.1",
+    "version": "0.2",
     "height": 624455,
-    "prevMinerId": "022604665d3a186be9690231a279f8e18b800f4ce78caac2d51940c8c1c92a8354",
-    "prevMinerIdSig": "3044022067452f9d9baeef327183e2f565c8c4d76299287d6c0253aa133c75150d78d307022029c9d93ac08c19e20a03dc32307c4f0a023e79a505c02b01857c84d49670acf6",
-    "minerId": "022604665d3a186be9690231a279f8e18b800f4ce78caac2d51940c8c1c92a8354",
-    "dynamicMinerId": "022604665d3a186be9690231a279f8e18b800f4ce78caac2d51940c8c1c92a8354",
+    "prevMinerId": "02759b832a3b8ec8184911d533d8b4b4fdc2026e58d4fba0303587cebbc68d21ab",
+    "prevMinerIdSig": "3045022100f1345cd9c488db6adbcfc1ef17bf09dc5674cca3d9b6c35c0d79f434b7f933290220360e04161078ee6f433f11c0f5d9fa6500c14e41ff5d7d242fab41aec83e424b",
+    "minerId": "02759b832a3b8ec8184911d533d8b4b4fdc2026e58d4fba0303587cebbc68d21ab",
+    "dynamicMinerId": "02759b832a3b8ec8184911d533d8b4b4fdc2026e58d4fba0303587cebbc68d21ab",
     "vctx": {
-      "txid": "6584f53e13216d34979098362bda34bd3677058c8b4e0621b24395c576b6baad",
+      "txid": "6839008199026098cc78bf5f34c9a6bdf7a8009c9f019f8399c7ca1945b4a4ff",
       "vout": 0
     }
   },
-  "signature": "3045022100ae0bc35173357a3afc52a39c7c6237a0b2f6fdaca3f76667bde966d3c00655ff02206767755766be7b7252a42a00eb3aa38d62aae6acf800faa6ff3ea1bb74f4cf05"
+  "signature": "30440220365fd836bb566dcdf2c1bca13e3fa45adc21d9bb5118e79a5764f7ab92421fd502201006b12b2d8f1de7ac47f4c4d85b5136425ad600d59dc2559c126aec7a941914"
 }
 ```
 
@@ -255,3 +255,10 @@ However, as miner reputations become more valuable there could possibly be cases
 In the case of a private miner, this is even more secure as the coinbase document would not be revealed until the block is mined meaning the attacker would have to win a block race *after* the block they are trying to orphan is propogated.  In the case of a pool though the coinbase transaction is known to all participants in the pool ahead of time eliminating this time disadvantage.
 
 If a miner is not satisfied with the security described above, they can optionally implement an extension technique to harden security described in the MinerId extension: `MinerIdExt-blockBind`. 
+
+## 5 Changelog
+
+|     Version     |  Notable changes  |
+| :----------: | :-----: |
+| 0.1 | Initial spec |
+| 0.2 | Change encoding of `prevMinerIdSig` (use hex encoding instead of default utf8) |
