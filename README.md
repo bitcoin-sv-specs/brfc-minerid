@@ -1,264 +1,486 @@
 ## RFC Notice
 
-This draft spec is released as an RFC (request for comment) as part of the public review process. Any comments, criticisms or suggestions should be directed toward the [issues page](https://github.com/bitcoin-sv-specs/brfc-minerid/issues) on this github repository.
+This draft specification is released as an RFC _(request for comment)_ as part of the public review process. Any comments, criticisms or suggestions should be directed toward the [issues page](https://github.com/bitcoin-sv-specs/brfc-minerid/issues) on this github repository.
 
-A reference implementation of the Miner ID document server is available at https://github.com/bitcoin-sv/minerid-reference
+A reference implementation of the Miner ID document server is available at [https://github.com/bitcoin-sv/minerid-reference](https://github.com/bitcoin-sv/minerid-reference)
 
 # MinerId Specification
 
-|     BRFC     |  title  | authors | version |
-| :----------: | :-----: | :-----: | :-----: |
-| f44dbb52b4b2 | minerId | nChain  |   0.2   |
+| **BRFC** | **title** | **authors** | **version** |
+| ------------ | ------- | ------ | --- |
+| 6a2e939f8d19 | minerId | nChain | 1.0 |
 
 ## 1. Introduction
 
-In the current design, Miners identify themselves by including some data in the malleable input fields of the coinbase transaction whenever they mine a block. However, this data is not always accurate and can be forged.
+Miners can identify themselves by including Miner information in transactions within the block. The relevant transactions are pointed to _(directly and indirectly)_ by the coinbase transaction of the block.
 
-The MinerId change provides a way of cryptographically identifying miners. A MinerId is a public key of an ECDSA keypair. It is used to sign a coinbase document and is included as an OP_RETURN output in the coinbase transaction of a block, instead of providing unsigned arbitrary data. It must be noted that MinerId is a voluntary extra service that miners can offer and is in no way mandatory.
+The Miner ID is recorded on the BSV main chain _(a.k.a active chain)_, consequently, the Miner ID protocol data present on a forked-branch will be ignored by the processing nodes. Moreover, the Miner ID reputation is built up as a sequence of Miner ID chains recorded on the BSV main chain. The initial miner info document defines the beginning of the first Miner ID chain. The beginning of the following chains is defined by the Miner ID key rotation. The protocol does not support parallel Miner ID chains. Any such occurrence indicates a malicious activity.
 
-## 1.1 Purpose
+The protocol is cryptographically secured by two independent keys: the Miner ID and Revocation Key. The compromised miner can recover his identity if not more than one key is compromised.
 
-A MinerId will enable miners build up a reputation over time to increase public confidence in their services, while at the same time protecting themselves from miner manipulation and spoofing. A miner can also include additional information in the coinbase document such as services offered, contact information. Third parties can be confident that any message signed using the private key of the miner Id comes from that miner and can be used to for further chain analysis, for example calculating the number of blocks that miner has mined.
+Miner ID is a voluntary extra service that miners can offer and is not mandatory.
 
-## 1.2 How to enable MinerId
+### 1.1 Benefits
 
-The MinerId generator is used to generate the MinerId output which includes the coinbase document and a signature on it with the MinerId private key. The pool operator can then simply append that output to the coinbase transaction before mining for a new block.
+Miner ID enables miners to build up a reputation over time that increases public confidence in their services, while at the same time protecting miners from manipulation and spoofing. A miner can also include additional information in the miner info document such as services offered, contact information, etc. Third parties can be confident that any message signed using the miner ID private key comes from that miner. It can be further used for chain analysis _(e.g. determining the number of blocks mined by a specific miner)_.
 
-Refer to sample MinerId generator code in [JavaScript](minerId-generator.js) or [Golang](minerId-generator.go)
+### 1.2 How to enable Miner ID
 
-## 2 Context diagram
+The Miner ID Generator is used to generate the Miner ID output _(Miner ID public key and signature)_; the pool operator can append that output to the coinbase transaction before mining for a new block.
 
-![woc](MinerId-WhatsOnChain.png)
+[Miner ID Generator](docs/mid_generator/minerid-generator.md)
 
-## 3 Design changes to coinbase Tx
+## 2. Changes to coinbase transaction to incorporate Miner ID
 
-The changes implemented allow for the inclusion of the MinerId in the coinbase transaction as follows:
+### 2.1 Coinbase transaction without Miner ID
 
-## 3.1 Current design: Coinbase transaction (without MinerId)
+**Coinbase Transaction**
 
-|            |      coinbase tx       |          |
-| ---------- | :--------------------: | :------: |
-| **inputs** |      **outputs**       |  value   |
+| **inputs** | **outputs** | **value** |
+| ---------- | ---------------------- | -------- |
 | `coinbase` | `miner locking script` | `reward` |
 
-```json
-{
-  "txid": "4201d9c9dcbc834780bbbbaa03cab835cc191271a19bf98f8ec21ed3c1dc784b",
-  "hash": "4201d9c9dcbc834780bbbbaa03cab835cc191271a19bf98f8ec21ed3c1dc784b",
-  "version": 1,
-  "size": 118,
-  "locktime": 0,
-  "vin": [
-    {
-      "coinbase": "03855c092f636f696e6765656b2e636f6d2f775931ba631dbfe872e47c7f650000",
-      "txid": "",
-      "vout": 0,
-      "scriptSig": {
-        "asm": "",
-        "hex": ""
-      },
-      "sequence": 4294967295
-    }
-  ],
-  "vout": [
-    {
-      "value": 12.5235674,
-      "n": 0,
-      "scriptPubKey": {
-        "asm": "OP_DUP OP_HASH160 8460e9a972a8600766a1b38fac4a2cfb8692d3ad OP_EQUALVERIFY OP_CHECKSIG",
-        "hex": "76a9148460e9a972a8600766a1b38fac4a2cfb8692d3ad88ac",
-        "reqSigs": 1,
-        "type": "pubkeyhash",
-        "addresses": ["1D4xHwLxA8E9vU87N1ELHtPEZdKeLhywY1"]
-      }
-    }
-  ]
-}
-```
+### 2.2  Coinbase transaction with Miner ID
 
-## 3.2 New design: Coinbase transaction (with MinerId)
-        
-### Static and Dynamic documents
+#### 2.2.1 Miner Info document
 
-The miner ID is broken up into a static and a dynamic section. This can potentially facilitate bulk pre-signing of parts of the document in advance whilst allowing additional data that cannot be known until the block template is built to be incorporated and signed seperately.  This may be useful in cases where a miner wishes to maintain their ID but delegate block template building to another party. In order to form the final CD document the static and dynamic parts should be merged. 
+The table below shows the structure of the coinbase transaction, which refers to the transaction containing the miner info document and signature.
 
-* If the dynamic coinbase document is present then a valid signature over that block MUST also be present otherwise the entire coinbase document, including the static document, must be considered invalid even if the static signature is correct.
-* It is not valid for a dynamic field to overwrite the value of a field in the static part of the document without specifically being authorised in the static document. In the absence of authorization the dynamic value should be ignored when merging the documents rather than invalidating the entire document. The authorization mechanism is not yet defined but will be part of a future BRFC.
+**Miner ID Coinbase Transaction**
 
+| **inputs** | **outputs** | **value** |
+| ---------- | :------------------------------------------------------------------------------------------ | -------- |
+| `coinbase` | `miner locking script` | `reward` |
+|            | `OP_0 OP_RETURN 0x601dface protocol-id-version miner-info-txid block-bind sig(block-bind)` | `0` |
 
-|            |                                         coinbase tx                                         |          |
-| ---------- | :-----------------------------------------------------------------------------------------: | :------: |
-| **inputs** |                                         **outputs**                                         |  value   |
-| `coinbase` |                                   `miner locking script`                                    | `reward` |
-|            | `OP_0` `OP_RETURN` `0xAC1EED88` `static-CD` `sig(static-CD)` `dynamic-CD` `sig(dynamic-CD)` |   `0`    |
+The table below shows the structure of the miner info transaction containing the miner info document and signature.
+
+**Miner Info Transaction**
+
+| **inputs** | **outputs** | **value** |
+| --- | :-------------------------------------------------------------------------- | --- |
+| ... | `OP_0 OP_RETURN 0x601dface protocol-id-version miner-info sig(miner-info)` | `0` |
+| ... | ... | ... |
+
+The block height is included in the miner info document. The miner info transaction must be included in the same block as the Miner ID coinbase transaction referencing it.
 
 Note that different data elements are encapsulated in Bitcoin PUSHDATA operation as described in this [data element framing standard](https://github.com/bitcoin-sv-specs/op_return/blob/master/01-PUSHDATA-data-element-framing.md)
 
-| attribute                    | description                                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AC1EED88`                   | 4 byte MinerId [protocol prefix](https://github.com/bitcoin-sv-specs/op_return/blob/master/02-OP_RETURN-protocol-prefix-spec.md)                                                                                                                                                                                                                                                           |
-| `static-CD`                  | The main coinbase document containing data that is static, not affected by block template content and can be known in advance                                                                                                                                                                                                                                                              |
-| `sig(static-CD)`             | Signature over the static coinbase document using current MinerId (hex value)                                                                                                                                                                                                                                                                                                              |
-| (optional) `dynamic-CD`      | Contains data that may change since the time the static-CB was signed                                                                                                                                                                                                                                                                                                                      |
-| (optional) `sig(dynamic-CD)` | Signature over the concatenation of `static-CD`, `sig(static-CD)` and `dynamic-CD`, using the private key associated with the public key declared in the `dynamicMinerId` fields of the `static-CB`. If the `dynamic-CD` is present this signature field is mandatory. Note: that only the data itself and NOT the pushdata operations in the script are included in the signature message |
+| **attribute** | **description** |
+| :-------------------- | :---------------------------------------------------------------------------------------- |
+| `0x601dface`          | 4 byte miner ID [protocol prefix](https://github.com/bitcoin-sv-specs/op_return/blob/master/02-OP_RETURN-protocol-prefix-spec.md). |
+| `protocol-id-version` | 1 byte protocol prefix version, must be 0. |
+| `miner-info`          | The miner info document. It must be included in the first output of the miner info transaction _(at the index 0)_. |
+| `sig(miner-info)`     | The signature on `miner-info` using the private key associated with the miner ID public key defined in `miner-info`. It must be included in the first output of the miner info transaction _(at the index 0)_.<br /> _Note: Only the data itself and NOT the PUSHDATA operations in the script are included in the signature message_. |
+| `miner-info-txid`     | 32 byte transaction ID of the transaction containing the miner info document. |
+| `block-bind`          | The hash over the modified Merkle root and previous block hash concatenated field, see [block binding technique](docs/block_binding_technique.md). |
+| `sig(block-bind)`     | The signature on `block-bind` using the private key associated with the miner ID in the miner info transaction. |
 
-```json
-{
-  "txid": "6e15167c0fcfa848c9d680a083ed4ae9feb092b10b991e42c84b8b47b1beaa64",
-  "hash": "6e15167c0fcfa848c9d680a083ed4ae9feb092b10b991e42c84b8b47b1beaa64",
-  "version": 1,
-  "size": 829,
-  "locktime": 0,
-  "vin": [
-    {
-      "coinbase": "035a890064656d6f2d6d696e65721d5b8da25262ce2501000000",
-      "txid": "",
-      "vout": 0,
-      "scriptSig": {
-        "asm": "",
-        "hex": ""
-      },
-      "sequence": 4294967295
-    }
-  ],
-  "vout": [
-    {
-      "value": 0,
-      "n": 0,
-      "scriptPubKey": {
-        "asm": "OP_DUP OP_HASH160 357692bd21462caf0ddb029b18e4b63a02ce86be OP_EQUALVERIFY OP_CHECKSIG",
-        "hex": "76a914357692bd21462caf0ddb029b18e4b63a02ce86be88ac",
-        "reqSigs": 1,
-        "type": "pubkeyhash",
-        "addresses": ["mkPe9qAiN6yMcyC8Xs8H1eKBo9HavpVqtV"]
-      }
-    },
-    {
-      "value": 0,
-      "n": 1,
-      "scriptPubKey": {
-        "asm": "0 OP_RETURN 6163316565643838 7b2276657273696f6e223a22302e31222c22686569676874223a223335313632222c22707265764d696e65724964223a22303366396430353766366666363630366636313533303238313264623337663665636364643533316364643263333231363733616631383763663764626262396165222c22707265764d696e65724964536967223a223330343430323230363538393639613361383462663634383039643838343564623161353164613630326363653038333837336136633337376336336261346136393832396261303032323033386435373239643233396562613161333434656636343138343539333266383538633063616563633935313266373166626234336537373539616562636566222c226d696e65724964223a22303366396430353766366666363630366636313533303238313264623337663665636364643533316364643263333231363733616631383763663764626262396165222c2276637478223a7b2274784964223a2231316339663062653535646138383139326631623635333834363839373562636663313633356334386631636539656561653132636461656663356134633939222c22766f7574223a307d2c226d696e6572436f6e74616374223a7b226e616d65223a2264656d6f222c22656d61696c223a2264656d6f4064656d6f2e636f6d222c226d65726368616e74415049456e64506f696e74223a22687474703a2f2f64656d6f2d6d696e657269642e636f6d227d7d 3330343430323230376361613966393666316439626533336430316664613663323165643132306132396535356464643163373535343730623935373765626630373761303234363032323030353739333734386438383261376335343862303336336264343264656466393131366463373862653230333162343461323462633131616263326365656135",
-        "hex": "006a0861633165656438384d27027b2276657273696f6e223a22302e31222c22686569676874223a223335313632222c22707265764d696e65724964223a22303366396430353766366666363630366636313533303238313264623337663665636364643533316364643263333231363733616631383763663764626262396165222c22707265764d696e65724964536967223a223330343430323230363538393639613361383462663634383039643838343564623161353164613630326363653038333837336136633337376336336261346136393832396261303032323033386435373239643233396562613161333434656636343138343539333266383538633063616563633935313266373166626234336537373539616562636566222c226d696e65724964223a22303366396430353766366666363630366636313533303238313264623337663665636364643533316364643263333231363733616631383763663764626262396165222c2276637478223a7b2274784964223a2231316339663062653535646138383139326631623635333834363839373562636663313633356334386631636539656561653132636461656663356134633939222c22766f7574223a307d2c226d696e6572436f6e74616374223a7b226e616d65223a2264656d6f222c22656d61696c223a2264656d6f4064656d6f2e636f6d222c226d65726368616e74415049456e64506f696e74223a22687474703a2f2f64656d6f2d6d696e657269642e636f6d227d7d4c8c3330343430323230376361613966393666316439626533336430316664613663323165643132306132396535356464643163373535343730623935373765626630373761303234363032323030353739333734386438383261376335343862303336336264343264656466393131366463373862653230333162343461323462633131616263326365656135",
-        "type": "nulldata"
-      }
-    }
-  ]
-}
+#### 2.2.2 Miner Info document template
+
+The miner info document is a stateless JSON document where a miner includes Miner ID information at a specified block height.
+
 ```
-
-## 3.2.1 Static coinbase document template
-
-The static coinbase document in the coinbase transaction is a stateless JSON document where a miner includes MinerId information at a specified block height.
-
-```json
 {
   "version": string,
   "height": number,
 
   "prevMinerId": string,
   "prevMinerIdSig": string,
-  "dynamicMinerId": string,
 
   "minerId": string,
 
-  "vctx": {
-    "txId": string,
-    "vout": number
-  },
+  "prevRevocationKey": string,
+  "prevRevocationKeySig": string,
 
+  "revocationKey": string,
+
+  "revocationMessage": object,
+  "revocationMessageSig": object,
+  
   "minerContact": {
     "name": string,
     "merchantAPIEndPoint": string,
     "<any>": <any>
   },
-
+  
   "extensions": {
-    
+    "authconn": {
+        "PublicIP": string,
+        "PublicPort": number
+    }
   }
 }
 ```
 
-| attribute        | description                                                                                                                                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `version`        | MinerId implementation version number                                                                                                                                                                                                |
-| `height`         | block height in which MinerId document is included                                                                                                                                                                                   |
-| `prevMinerId`    | previous MinerId public key, a 33 byte hex                                                                                                                                                                                           |
-| `prevMinerIdSig` | signature on message = `concat(prevMinerId, MinerId, vctxid)` using the private key associated with the prevMinerId public key, 70-73 byte hex  (note that the concatenation is done on the hex encoded bytes)                       |
-| `minerId`        | current MinerId ECDSA (secp256k1) public key represented in compressed form as a 33 byte hex string                                                                                                                                  |
-| `dynamicMinerId` | optional ECDSA (secp256k1) public key represented in compressed form as a 33 byte hex string that is authorised to sign the dynamic coinbase document (described later in this document) - this can be the same as the minerId field |
-| `vctx`           | validity check transaction output that determines whether the MinerId is still valid                                                                                                                                                 |
-| `vctx: txId`     | validity check transaction output transaction ID, 32 byte hex                                                                                                                                                                        |
-| `vctx: vout`     | validity check transaction output number                                                                                                                                                                                             |
-| `minerContact`   | extra miner details (optional with arbitrary number of subfields)                                                                                                                                                                    |
-| `extensions`     | additional (optional) data defined by MinerId extension brfcs. This field may be omitted if no extensions are in use                                                                                                                 |
+| **field** | **status** | **description** |
+| :---------------------- | :----------------------: | :---------------------------------------------------------------------------------------- |
+| `version`              | required | Miner ID implementation version number. |
+| `height`               | required | Block height in which Miner ID document is included. |
+| `prevMinerId`          | required | Previous minerId public key, a 33 byte hex string. |
+| `prevMinerIdSig`       | required | Signature on message = `HASH256(concat(prevMinerId, minerId))` using the private key associated with the prevMinerId public key, 70-72 byte hex _(the concatenation is done on the hex encoded bytes)_. |
+| `minerId`              | required | Current Miner ID ECDSA _(secp256k1)_ public key represented in compressed form as a 33 byte hex string. |
+| `prevRevocationKey`    | required | Previous revocationKey public key, a 33 byte hex string. |
+| `prevRevocationKeySig` | required | Signature on message = `HASH256(concat(prevRevocationKey, revocationKey))` using the private key associated with the prevRevocationKey public key, a 70-72 byte hex string _(the concatenation is done on the hex encoded bytes)_. |
+| `revocationKey`        | required | Current revocation key ECDSA _(secp256k1)_ public key represented in compressed form as a 33 byte hex string. |
+| `revocationMessage`    | conditionally required | [revocationMessage definition](#revocationmessage) |
+| `revocationMessageSig` | conditionally required | [revocationMessageSig definition](#revocationmessagesig) |
+| `minerContact`         | optional | Extra miner details _(with arbitrary number of subfields, none of which are required)_. |
+| `extensions`           | optional | Additional data defined by MinerId extension BRFCs. This field may be omitted if no extensions are in use. |
 
-## 3.2.2 Example MinerId coinbase document
+##### revocationMessage
 
-The `CD` and `sig(CD)` in proper JSON fromat decoded from the transaction (as shown on [WoC](https://whatsonchain.com/tx/0252d56c222839ab9b727104f3e4b87bc4f1c97178cce572b23d0c3f4a65bddd)):
+The revocation message field to be signed to certify the legitimate miner who wants to revoke past reputation.
 
-```json
-{
-  "document": {
-    "version": "0.2",
-    "height": 624455,
-    "prevMinerId": "02759b832a3b8ec8184911d533d8b4b4fdc2026e58d4fba0303587cebbc68d21ab",
-    "prevMinerIdSig": "3045022100f1345cd9c488db6adbcfc1ef17bf09dc5674cca3d9b6c35c0d79f434b7f933290220360e04161078ee6f433f11c0f5d9fa6500c14e41ff5d7d242fab41aec83e424b",
-    "minerId": "02759b832a3b8ec8184911d533d8b4b4fdc2026e58d4fba0303587cebbc68d21ab",
-    "dynamicMinerId": "02759b832a3b8ec8184911d533d8b4b4fdc2026e58d4fba0303587cebbc68d21ab",
-    "vctx": {
-      "txid": "6839008199026098cc78bf5f34c9a6bdf7a8009c9f019f8399c7ca1945b4a4ff",
-      "vout": 0
-    }
-  },
-  "signature": "30440220365fd836bb566dcdf2c1bca13e3fa45adc21d9bb5118e79a5764f7ab92421fd502201006b12b2d8f1de7ac47f4c4d85b5136425ad600d59dc2559c126aec7a941914"
+The `revocationMessage` is a JSON object containing the compromised minerId public key - in the case of complete revocation it is the _minerId_ key defined by the initial Miner ID document:
+```
+"revocationMessage": {
+    "compromised_minerId": string
+}
+```
+The `revocationMessage` field is required in the miner info document only if one of the following occurs: [Rolling the Miner ID using Revocation Key](#441-rolling-the-miner-id-using-revocation-key) or [Complete Miner ID Revocation](#442-complete-miner-id-revocation).
+
+##### revocationMessageSig
+
+The field defines two different signatures on the `msg_hash := Hash256(compromised_minerId)` message digest.
+
+The `revocationMessageSig` is a JSON object containing two signatures:
+```
+"revocationMessageSig": {
+    "sig1": string,
+    "sig2": string
+}
+```
+> Note: `sig1` and `sig2` are 70-72 byte hex strings.
+
+`sig1 := Sign(msg_hash, priv_revocationKey)`, where _priv\_revocationKey_ is the private key associated with the _revocationKey_ public key.
+
+`sig2 := Sign(msg_hash, priv_minerId)`, where _priv\_minerId_ is the private key associated with the miner's:
+- current miner ID public key defined in the complete revocation document by the _minerId_ data field, or
+- previous miner ID public key defined in the partial revocation document by the _prevMinerId_ data field
+
+The revocation document is a miner info document which does define a partial or complete miner ID key revocation _(see 4.4.1 and 4.4.2 sections)_.
+
+The `revocationMessageSig` field is only required if the `revocationMessage` field is defined.
+
+##### Extensions object
+
+| **field** | **type** | **status** | **description** |
+| ---------- | ------ | -------- | ------------------------------------------ |
+| `dataRefs` | object | optional | See section 7 |
+| `authconn` | object | optional | `"PublicIP": string, "PublicPort": number` |
+
+#### 2.2.4 Miner info signatures.
+
+The main signature which certifies each and every miner info document is _sig(miner-info)_. All other signatures defined by the protocol are included in the document itself, and thus coupled with the main signature. As a result, the miner ID key is always used to authorise any change in the document.
+
+#### 2.2.5 Miner ID Extensions
+
+The base MinerId protocol is intended to be extended with additional information as required. Extensions are out of scope for the base protocol and are described in additional BRFC documents. Extensions along with their BRFCs can be found in the `extensions` directory. For more info please check:
+
+*   [blockinfo](extensions/blockinfo/README.md)
+*   [feespec](extensions/feespec/README.md)
+*   [minerparams](extensions/minerparams/README.md)
+
+Internal extension data can be added in the `extensions` field of the miner info document. Each BRFC should encapsulate its additional data within its own JSON document inside the `extension` object of the relevant miner info document.
+
+## 3. Two-key solution to Impersonation
+
+Miners can identify themselves by including some recognisable data _(e.g. their name)_ in the coinbase transaction whenever they mine a block. However, this data can be forged and is not standardised.
+
+The miner ID provides a way of cryptographically identifying miners that cannot be forged unless the Miner ID private key is compromised _(known to a 3rd party)_.
+
+If the miner ID is compromised, a second "revocation" key can be used by the miner to force the roll of the miner ID to a new value chosen by the miner.
+
+It is vital that both keys are not compromised. If both keys are known to a 3rd party then that party can take over the miner ID chain and the legitimate owner cannot do anything about it.
+
+**ECDSA (secp256k1) keys used by the MinerID Protocol**
+
+| **Name** | **Private key**\* | **Public key** | **Description** |
+| :------------------ | :------------------ | :----------------- | :--------------------------------------------------------- |
+| `minerId`           | Used to sign:<br /> a. the miner info document<br /> b. the `block-bind` data  <br /> c. the revocation message | Used in the miner info document. | Current MinerID key which identifies a miner. |
+| `prevMinerId`       | Certifies _minerId_ key rotation. | Used in the miner info document. | Previous MinerID key. |
+| `revocationKey`     | Signs the revocation message. | Used in the miner info document. | Current revocation key. |
+| `prevRevocationKey` | Certifies _revocationKey_ key rotation. | Used in the miner info document. | Previous revocation key. |
+
+> \* Must be secretly kept.
+
+> Note:
+    <br />1. All the keys are unique. If the private key from the private/public key pair becomes compromised, then the whole key is considered compromised.
+    <br />2. A Miner ID is the public key of an ECDSA keypair. The Miner ID private key is used to sign a miner info document that is included as an OP\_RETURN output of a transaction in a block; the coinbase transaction of the same block points to that transaction.
+
+## 4. Key Management
+
+Keys can be compromised. Many security protocols require keys to be changed at regular intervals to improve security. It is a requirement that the specification supports:
+
+*   planned rolling of the miner ID key or revocation key.
+*   rolling of the miner ID key in response to a spoofed miner ID on the blockchain.
+*   rolling of the revocation key in response to a data breach.
+*   complete revocation of a miner ID.
+
+### 4.1 Initial Key Setup
+
+_Use case: Create a new Miner ID reputation chain._
+
+The first Miner ID miner info document assigns:
+
+*   the same miner ID public key to _prevMinerId_ and _minerId_ fields defined in the protocol _(which marks the beginning of the MinerID reputation chain)_.
+*   the same revocation public key to _prevRevocationKey_ and _revocationKey_ fields; it also contains _prevRevocationKeySig_ signature to confirm the possession of the corresponding revocation private key.
+
+![](docs/fig1_minerid_and_revocation_key_initial_setup.png)
+
+> Note: The _prevMinerIdSig_ field is not defined because _prevMinerId == minerId_ and the miner info document itself is signed by _minerId_ private key.
+
+The protocol assumes that the keys initialised in the first miner info document can be reused by consecutive miner info documents until the key rolling or key revocation occurs.
+
+![](docs/fig2_minerid_and_revocation_key_reused.png)
+
+### 4.2 Miner ID Key Rolling
+
+_Use Case: Typically this protocol would be invoked to satisfy security protocols that require that keys be changed at regular intervals, or if it is suspected that someone has knowledge of the miner ID private key who should not have._
+
+The protocol replaces the currently active private/public Miner ID key pair with a new one, and thus the former _minerId_ public key becomes _prevMinerId_ public key in the new miner info document. To authorise the Miner ID Key Rolling procedure the _prevMinerIdSig_ signature must be created and included in the new miner info document. This will prove that the miner possesses the corresponding private key of the public key which is being rotated.
+
+![](docs/fig3a_first_minerid_key_rolling.png)
+
+![](docs/fig3b_second_minerid_key_rolling.png)
+
+If the _prevMinerIdSig_ is invalid, then the Miner ID Key attached to the block or notification is regarded as invalid and processing proceeds as if the Miner ID document was not present.
+
+> Note:
+    <br />1. The currently active Miner ID key is always the one indicated by the last miner info document recorded on the active chain by the genuine miner.
+    <br />2. The Miner ID key can be rotated if either its lifespan has elapsed or the key has been classified as compromised.
+    <br />3. The final signature over the miner info document - _sig(miner-info-doc)_ using the current _minerId_ private key - certifies the MinerID Key Rolling procedure.
+
+### 4.3 Revocation Key Rolling
+
+_Use Case: Typically this protocol would be invoked to satisfy security protocols that require that keys be changed at regular intervals, or if it is suspected that someone has knowledge of the revocation private key who should not have._
+
+The section describes the protocol used to roll the revocation key if there is no active attempt to impersonate the revocation key. 
+
+The protocol replaces the currently active private/public revocation key pair with a new one, and thus the former _revocationKey_ public key becomes _prevRevocationKey_ public key in the new miner info document. To authorise the Revocation Key Rolling procedure the _prevRevocationKeySig_ signature must be created and included in the new miner info document. This will prove that the corresponding private key _(of the public key which is being rotated)_ is accessible by the miner.
+
+![](docs/fig4a_first_revocation_key_rolling.png)
+
+![](docs/fig4b_second_revocation_key_rolling.png)
+
+If the _prevRevocationKeySig_ signature is invalid, then the whole miner info document is considered as invalid.
+
+> Note:
+    <br />1. The currently active revocation key is always the one indicated by the last miner info document recorded on the active chain by the genuine miner.
+    <br />2. The revocation key can be rotated if either its lifespan has elapsed or the key has been classified as compromised.
+    <br />3. The final signature over the miner info document - _sig(miner-info-doc)_ using the current _minerId_ private key - certifies the Revocation Key Rolling procedure.
+
+### 4.4 Key Revocation Protocol
+
+_The Miner ID reputation chain is required to be a part of the BSV main chain, and thus any change in the Miner ID protocol data must also be recorded on the BSV main chain. This approach guarantees that new nodes will interpret the Miner ID reputation chain correctly during the IBD process._
+
+Key Revocation is an optional 2-key solution to security issues. The _minerId_ private key is used in the day-to-day operation of miner ID. A separate revocation key-pair is kept in reserve _(possibly off-site)_ to restore compromised or potentially compromised _minerIds_.
+
+If the revocation key also becomes compromised, then the miner has effectively lost control of his on-chain identity and he will need to rebuild his identity from scratch.
+
+The revocation private key should remain as secure as possible and not be distributed unnecessarily - It is therefore not expected to be available for automated signing. The revocation key can only be defined at the same time as the first _minerId_ in the chain of _minerIds_, although it can be rotated in the future.
+
+#### 4.4.1 Rolling the Miner ID using Revocation Key
+
+_Use Case: Typically this protocol would be invoked if an attacker has generated a block successfully marked with the miner ID belonging to someone else. I.e. The attacker has successfully impersonated the miner. The miner knows exactly which minerId private key has been compromised. The revocation key has NOT been compromised._
+
+The section describes the protocol used to roll the miner ID key using the revocation key.
+
+This type of attack requires the attacker to know the miner ID private key.
+
+The compromised miner can decide to partially revoke its reputation if he knows exactly which _minerId_ private key is compromised in his reputation chain. The partial revocation requires to define the _revocationMessage_ and _revocationMessageSig_ fields as well as to rotate the compromised _minerId_ public key in the next miner info document _(the revocation document)_.
+
+The following example illustrates how to revoke the compromised _minerId=mid4_ public key first detected in the recent _Bn+k_ block. The _Bn+k+1_ block contains the miner info revocation document which defines _minerId_ key rotation of the compromised key, as well as revokes miner's compromised reputation starting from the _Bn+j_ block by using _revocationMessage_ and _revocationMessageSig_.
+
+![](docs/fig5a_minerid_partial_revocation.png)
+
+> Note:
+    <br />1. The partial revocation only applies to the Miner ID reputation recorded on the active chain.
+    <br />2. Only the current _revocationKey_ private key can be used to sign _revocationMessage_. The old rotated revocation keys are invalid. In Fig. 5a the current revocation key is _rkey1_.
+    <br />3. The revocation message is also being signed by the miner ID private key. In Fig. 5a the private key associated with the current compromised _mid4_ public key is the right one to use _(the mid5 key will become the current uncompromised miner ID key once the revocation document is successfully recorded on the active chain)_.
+    <br />4. The final signature over the miner info revocation document - _sig(miner-info-doc)_ - is created using the new _minerId=mid5_ private key and included in the miner info transaction belonging to the _Bn+k+1_ block.
+
+#### 4.4.2 Complete Miner ID Revocation
+
+_Use case: Typically this protocol is invoked when the miner ID is compromised and the policy is to revoke the entire miner ID chain and start a new chain. The miner is uncertain which minerId private key has been compromised in the chain, and thus wants to invalidate the entire chain to prevent the miner's data to be reused by an attacker. The revocation key has NOT been compromised._
+
+The section describes the protocol used to completely revoke the entire Miner ID reputation.
+
+In order to completely revoke the past Miner ID reputation, the miner needs to include the first minerId public key (defined by the initial Miner ID document) in the _revocationMessage_ field and create _revocationMessageSig_ signature. The Miner ID or Revocation Key Rolling doesn't occur in the revocation document. The _prevMinerId_ field is set to the same value as the _minerId_ field. The revocation process is considered as completed when the revocation document is recorded on the active chain. After that, the legitimate miner must setup a new identity from scratch.
+
+The Fig. 5b example shows _Bn+k+1_ block containing miner info document where complete revocation is defined. After that the miner must to recreate its reputation chain from scratch - what is shown by _Bn+k+2_ block.
+
+![](docs/fig5b_minerid_key_complete_revocation.png)
+
+> Note:
+    <br />1. The complete revocation only applies to the Miner ID reputation recorded on the active chain.
+    <br />2. Only the current _revocationKey_ private key can be used to sign _revocationMessage_. The old rotated revocation keys are invalid. In Fig. 5b the current revocation key is _rkey1_.
+    <br />3. The current revocation keys can be reused by the miner info document defined in the _Bn+k+2_ block _(the first block of the new identity)_.
+    <br />4. The revocation message is also being signed by the miner ID private key. In Fig. 5b the private key associated with the current compromised _mid4_ public key is the right one to use.
+    <br />5. The final signature over the miner info revocation document - _sig(miner-info-doc)_ - is created using the current  _minerId=mid4_ private key and included in the miner info transaction belonging to the _Bn+k+1_ block.
+
+## 5. P2P announcements
+
+_Use case: A PoW-independent notification sent by a miner to inform its connection peers about the compromised minerId key. The announcement refers to the Miner ID blocks recorded on the active chain._
+
+To allow instant revocation of the compromised _minerId_ public key the protocol introduces a new P2P _revokemid_ message. It is not expect that the whole network is reachable via P2P messages, and thus the P2P message should be interpreted as an early announcement of the compromised _minerId_ public key. If the given node gets a valid revocation message, then it should invalidate the compromised _minerId_ public key in its own Miner ID database.
+
+[P2P revokemid message](https://github.com/bitcoin-sv-specs/protocol/blob/master/p2p/miner_id.md)
+
+## 6. DataRefs
+
+The `dataRefs` field enables miner info documents to include data contained in other transactions. The miner info document will likely be widely requested by users along with block headers in the future. As such it is in the miner's interests to keep the miner info relatively small. A data reference allows data to be stored in other transactions and consolidated into a miner info document.
+
+The reference points to another transaction output that is expected to contain a JSON object. The contents of that JSON object should be merged into the `extensions` field. Note that the signatures are over the original miner info document containing the dataRef object and do not include the data itself. A hash of the data is included through the `txid`.
+
+The referenced transaction need not necessarily be included in the same block, allowing old data to be reused.
+
+> Note: We do not sign the additional data as the transaction id serves as a binding in the signature. The data cannot be changed without rendering the transaction ID invalid.
+
+### Template
+
+The `dataRefs` object should be located in the `extensions` field of the miner info document.
+
+```
+"extensions": {
+  "dataRefs": {
+    "refs": [
+      {
+        "brfcIds": string[],
+        "txid": string,
+        "vout": number,
+        "compress": string
+      },
+      {
+        "brfcIds": string[],
+        "txid": string,
+        "vout": number,
+        "compress": string
+      }
+    ]
+  }
 }
 ```
 
-## 3.2.3 Key design decisions
+#### `dataRefs` object:
 
-| Ref. | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 001  | The private key associated with the MinerId public key is used to sign a coinbase document and is included as an OP_RETURN output in the coinbase transaction of a block.                                                                                                                                                                                                                                                                                                   |
-| 002  | As the document is stateless, the previous and current MinerIds are included in the document (where they are both the same value if it is the first MinerId or no change has occurred). Where they are different this should be treated as a key rotation of the MinerId and the successive public keys should be treated as part of the same MinerId.                                                                                                                      |
-| 003  | vctx is included to enable the miner revoke their MinerId (if it is compromised for example). the miner could intentionally or otherwise add a field in the coinbase document specifying if the MinerId is still valid or not. However, by doing that, the miner would have to wait until they mine a block to revoke their MinerId key. Using the vctx, the miner can at any time revoke the validity of their MinerId key without having to wait until they mine a block. |
-| 004  | security hardening is an optional feature. Refer to discussion notes in the Appendix 4.2 for further detail.                                                                                                                                                                                                                                                                                                                                                                |
+| **field** | **description** |
+| -------- | :---------------------------------------------------------------------------------------- |
+| `dataRefs` | Extension name |
+| `refs`     | Array of reference objects with fields: `brfcIds`, `txid`, `vout`, and `compress` _(optional)_ that each refer to a specific transaction output _(TXO)_ |
 
-## 3.2.4 MinerId extensions
+#### `refs` object:
 
-The base MinerId protocol is intended to be extended with additional information as required.  Extensions are out of scope for the base protocol and are described in additional BRFC documents. By convention all extension data is contained with the `extensions` fields of either the `static-CB` or the `dynamic-CD` depending on the nature of the data.  Each BRFC should encapsulate it's additional data within it's own json document inside the `extenstions` object of the relevant CB document.
+| **field** | **description** |
+| -------------------- | :---------------------------------------------------------------------------------------- |
+| `brfcIds`             | An array of BRFC ID strings indicating which extensions have data in the remote reference. This can be used to decide if the data is interesting to the user or not. |
+| `txid`                | Transaction ID of the transaction containing additional miner info document data. |
+| `vout`                | Vout index of the output containing additional miner info document data. |
+| `compress` _(optional)_ | If present, specifies a compression algorithm used to uncompress the target data blob. `gzip` is specified initially. |
 
-## 4. Appendix
+### Example
 
-## 4.1 Sample MinerId generator
+#### `dataRefs` fields:
 
-| [JavaScript](minerId-generator.js) |
-
-```console
-$ npm install
-$ npm start
 ```
-  
-| [Golang](minerId-generator.go) |
-
-```console
-$ go run minerId-generator.go
+"extensions": {
+  "dataRefs": {
+    "refs": [
+      {
+        "brfcIds": ["62b21572ca46", "a224052ad433"],
+        "txid": "c6e68a930db53b804b6cbc51d4582856079ce075cc305975f7d8f95755068267",
+        "vout": 2,
+        "compress": "gzip"
+      },
+      {
+        "brfcIds": ["b8930c2bbf5d", "1b1d980b5b72"],
+        "txid": "1bc783a5f7a0e5ef2016caf52cfeabb4b1f43039d57bc07144a5de12382deaf5",
+        "vout": 0,
+        "compress": "gzip"
+      }
+    ]
+  }
+}
 ```
-  
-## 4.2 Security hardening (optional)
 
-### Design discussion notes
+### Referenced output script:
 
-Ideally, the MinerId (by extension the coinbase transaction) should be specific to the block it is in. By making the MinerId specific to the block it's mined in, we effectively bind the signature to the block it's contained in. Without this binding, a malicious miner could take your entire coinbase document and put it in another block, potentially in a block that damages reputation e.g. by including well known double spends. Because the block height is included in the coinbase document, the malicious miner would effectively have to orphan the block containing the signature they want to reuse (after it is mined) which makes the attack expensive. This cost may be enough to deter the attack in most cases.
+The transaction output referenced by the `txid` and `vout` fields of each `refs` object in the miner info documents should contain an output script at index 0. If there is more than one referenced output script to include, then each of them must be placed separately in the next consecutive output.
 
-However, as miner reputations become more valuable there could possibly be cases where the increased market share that comes from knocking a major miner out of the trusted network and causing them lose access to semi-trusted services has enough upside to justify the cost.
+The format of the referenced output script is:
 
-In the case of a private miner, this is even more secure as the coinbase document would not be revealed until the block is mined meaning the attacker would have to win a block race *after* the block they are trying to orphan is propogated.  In the case of a pool though the coinbase transaction is known to all participants in the pool ahead of time eliminating this time disadvantage.
+> `OP_0 OP_RETURN 0x601dface protocol-id-version OP_PUSHDATA json`
 
-If a miner is not satisfied with the security described above, they can optionally implement an extension technique to harden security described in the MinerId extension: `MinerIdExt-blockBind`. 
+| **field** | **description** |
+| ----- | :---------------------------------------------------------------------------------------- |
+| `json` | The brfcId field name should conform to [BRFC ID Assignment](https://bsvalias.org/01-02-brfc-id-assignment.html).<br /> If the dataRef specifies a `compress` field this data may be compressed.<br /><br /> Example:<br /> ```{ "brfcId1": { ... }, ... }``` |
 
-## 5 Changelog
+### Consolidated miner info document:
 
-|     Version     |  Notable changes  |
-| :----------: | :-----: |
-| 0.1 | Initial spec |
-| 0.2 | Change encoding of `prevMinerIdSig` (use hex encoding instead of default utf8) |
+```
+"extensions": {
+  "dataRefs": {
+    "refs": [{
+        "brfcIds": ["62b21572ca46", "a224052ad433"],
+        "txid": "c6e68a930db53b804b6cbc51d4582856079ce075cc305975f7d8f95755068267",
+        "vout": 2,
+        "compress": "gzip"
+      },
+      {
+        "brfcIds": ["b8930c2bbf5d", "1b1d980b5b72"],
+        "txid": "1bc783a5f7a0e5ef2016caf52cfeabb4b1f43039d57bc07144a5de12382deaf5",
+        "vout": 0,
+        "compress": "gzip"
+      }
+    ],
+    
+    "data": {
+      "62b21572ca46": {
+        // data for BRFC: 62b21572ca46
+      },
+      "a224052ad433": {
+        // data for BRFC: a224052ad433
+      },
+      "b8930c2bbf5d": {
+        // data for BRFC: b8930c2bbf5d
+      },
+      "1b1d980b5b72": {
+        // data for BRFC: 1b1d980b5b72
+      }
+    }
+  }
+}
+```
+> Note: The `"data"` section contains extension data that are defined in the referred to TXOs.
+
+### 6.1 Dataref transaction retrieval
+
+[P2P getdata message extension](https://github.com/bitcoin-sv-specs/protocol/blob/master/p2p/miner_id.md)
+
+## 7. Enriched header changes
+
+[P2P messages sendhdrsen / gethdrsen / hdrsen](https://github.com/bitcoin-sv-specs/protocol/blob/master/p2p/miner_id_headers.md)
+
+## 8. Appendix
+
+### 8.1 Sample Miner ID implementation
+
+|[JavaScript](minerId-generator.js)|
+
+```
+npm install
+npm start
+```
+
+### 8.2 Miner ID Integration & Deployment Instructions
+
+[Integration and Deployment](docs/integration_and_deployment.md)
+
+## 9. Changelog
+
+| **version** | **description** |
+| ------- | :---------------------------------------------------------------------------------------- |
+| 0.1 | Initial specification. |
+| 0.2 | Change encoding of `prevMinerIdSig` _(use hex encoding instead of default utf8)_. |
+| 1.0 | Replace the VCTX transaction by the Revocation Keys. Static and dynamic coinbase documents replaced with miner info document. Coinbase transaction now contains a reference to the miner info document rather than containing the miner info document. Protocol specifier updated.  |
